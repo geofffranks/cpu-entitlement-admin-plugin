@@ -10,6 +10,7 @@ import (
 	"code.cloudfoundry.org/cli/cf/terminal"
 	"code.cloudfoundry.org/cli/cf/trace"
 	"code.cloudfoundry.org/cli/plugin"
+	"code.cloudfoundry.org/cpu-entitlement-admin-plugin/metrics"
 	"code.cloudfoundry.org/cpu-entitlement-admin-plugin/output"
 	"code.cloudfoundry.org/cpu-entitlement-admin-plugin/reporter"
 	"code.cloudfoundry.org/cpu-entitlement-plugin/token"
@@ -41,7 +42,8 @@ func (p CPUEntitlementAdminPlugin) Run(cli plugin.CliConnection, args []string) 
 		logcache.WithHTTPClient(authenticatedBy(token.NewGetter(cli.AccessToken))),
 	)
 
-	reporter := reporter.New(cli, logCacheClient)
+	fetcher := metrics.NewLogCacheFetcher(logCacheClient)
+	reporter := reporter.New(cli, fetcher)
 	renderer := output.NewRenderer(ui)
 	runner := NewRunner(reporter, renderer)
 

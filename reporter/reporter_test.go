@@ -1,17 +1,13 @@
 package reporter_test
 
 import (
-	"context"
 	"errors"
 	"fmt"
-	"strings"
 
 	plugin_models "code.cloudfoundry.org/cli/plugin/models"
 	"code.cloudfoundry.org/cli/plugin/pluginfakes"
 	reporterpkg "code.cloudfoundry.org/cpu-entitlement-admin-plugin/reporter"
 	"code.cloudfoundry.org/cpu-entitlement-admin-plugin/reporter/reporterfakes"
-	"code.cloudfoundry.org/log-cache/pkg/client"
-	"code.cloudfoundry.org/log-cache/pkg/rpc/logcache_v1"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 )
@@ -20,12 +16,12 @@ var _ = Describe("Reporter", func() {
 	var (
 		reporter           reporterpkg.Reporter
 		fakeCliConnection  *pluginfakes.FakeCliConnection
-		fakeLogCacheClient *reporterfakes.FakeLogCacheClient
+		fakeMetricsFetcher *reporterfakes.FakeMetricsFetcher
 	)
 
 	BeforeEach(func() {
 		fakeCliConnection = new(pluginfakes.FakeCliConnection)
-		fakeLogCacheClient = new(reporterfakes.FakeLogCacheClient)
+		fakeMetricsFetcher = new(reporterfakes.FakeMetricsFetcher)
 
 		fakeCliConnection.GetSpacesReturns([]plugin_models.GetSpaces_Model{
 			{Guid: "space1-guid", Name: "space1"},
@@ -52,27 +48,20 @@ var _ = Describe("Reporter", func() {
 			return plugin_models.GetSpace_Model{}, fmt.Errorf("Space '%s' not found", spaceName)
 		}
 
-		fakeLogCacheClient.PromQLStub = func(_ context.Context, query string, _ ...client.PromQLOption) (*logcache_v1.PromQL_InstantQueryResult, error) {
-			switch {
-			case strings.Contains(query, "space1-app1-guid"):
-				return instantQueryResult(
-					sample("0", 1.5),
-					sample("1", 0.5),
-				), nil
-			case strings.Contains(query, "space1-app2-guid"):
-				return instantQueryResult(
-					sample("0", 0.3),
-				), nil
-			case strings.Contains(query, "space1-app1-guid"):
-				return instantQueryResult(
-					sample("0", 0.2),
-				), nil
+		fakeMetricsFetcher.FetchInstanceEntitlementUsagesStub = func(appGuid string) ([]float64, error) {
+			switch appGuid {
+			case "space1-app1-guid":
+				return []float64{1.5, 0.5}, nil
+			case "space1-app2-guid":
+				return []float64{0.3}, nil
+			case "space2-app1-guid":
+				return []float64{0.2}, nil
 			}
 
-			return instantQueryResult(), nil
+			return nil, nil
 		}
 
-		reporter = reporterpkg.New(fakeCliConnection, fakeLogCacheClient)
+		reporter = reporterpkg.New(fakeCliConnection, fakeMetricsFetcher)
 	})
 
 	Describe("OverEntitlementInstances", func() {
@@ -114,31 +103,12 @@ var _ = Describe("Reporter", func() {
 
 		When("getting the entitlement usage for an app fails", func() {
 			BeforeEach(func() {
-				fakeLogCacheClient.PromQLReturns(nil, errors.New("promql-error"))
+				fakeMetricsFetcher.FetchInstanceEntitlementUsagesReturns(nil, errors.New("fetch-error"))
 			})
 
 			It("returns the error", func() {
-				Expect(err).To(MatchError("promql-error"))
+				Expect(err).To(MatchError("fetch-error"))
 			})
 		})
 	})
 })
-
-func instantQueryResult(samples ...*logcache_v1.PromQL_Sample) *logcache_v1.PromQL_InstantQueryResult {
-	return &logcache_v1.PromQL_InstantQueryResult{
-		Result: &logcache_v1.PromQL_InstantQueryResult_Vector{
-			Vector: &logcache_v1.PromQL_Vector{
-				Samples: samples,
-			},
-		},
-	}
-}
-
-func sample(time string, value float64) *logcache_v1.PromQL_Sample {
-	return &logcache_v1.PromQL_Sample{
-		Point: &logcache_v1.PromQL_Point{
-			Time:  time,
-			Value: value,
-		},
-	}
-}

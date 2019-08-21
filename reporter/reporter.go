@@ -1,13 +1,8 @@
 package reporter // import "code.cloudfoundry.org/cpu-entitlement-admin-plugin/reporter"
 
 import (
-	"context"
-	"fmt"
-
 	"code.cloudfoundry.org/cli/plugin"
 	plugin_models "code.cloudfoundry.org/cli/plugin/models"
-	logcache "code.cloudfoundry.org/log-cache/pkg/client"
-	"code.cloudfoundry.org/log-cache/pkg/rpc/logcache_v1"
 )
 
 type Report struct {
@@ -19,21 +14,35 @@ type SpaceReport struct {
 	Apps      []string
 }
 
-//go:generate counterfeiter . LogCacheClient
+//go:generate counterfeiter . MetricsFetcher
 
-type LogCacheClient interface {
-	PromQL(ctx context.Context, query string, opts ...logcache.PromQLOption) (*logcache_v1.PromQL_InstantQueryResult, error)
+type MetricsFetcher interface {
+	FetchInstanceEntitlementUsages(appGuid string) ([]float64, error)
 }
+
+// type CloudFoundryClient interface {
+// 	GetSpaces() []Space
+// }
+
+// type Space struct {
+// 	Name         string
+// 	Applications []Application
+// }
+
+// type Application struct {
+// 	Name string
+// 	Guid string
+// }
 
 type Reporter struct {
 	cli            plugin.CliConnection
-	logCacheClient LogCacheClient
+	metricsFetcher MetricsFetcher
 }
 
-func New(cli plugin.CliConnection, logCacheClient LogCacheClient) Reporter {
+func New(cli plugin.CliConnection, metricsFetcher MetricsFetcher) Reporter {
 	return Reporter{
 		cli:            cli,
-		logCacheClient: logCacheClient,
+		metricsFetcher: metricsFetcher,
 	}
 }
 
@@ -77,14 +86,14 @@ func (r Reporter) filterApps(spaceApps []plugin_models.GetSpace_Apps) ([]string,
 }
 
 func (r Reporter) isOverEntitlement(appGuid string) (bool, error) {
-	appInstancesUsages, err := r.logCacheClient.PromQL(context.Background(), fmt.Sprintf(`absolute_usage{source_id="%s"} / absolute_entitlement{source_id="%s"}`, appGuid, appGuid))
+	appInstancesUsages, err := r.metricsFetcher.FetchInstanceEntitlementUsages(appGuid)
 	if err != nil {
 		return false, err
 	}
 
 	isOverEntitlement := false
-	for _, sample := range appInstancesUsages.GetVector().GetSamples() {
-		if sample.GetPoint().GetValue() > 1 {
+	for _, usage := range appInstancesUsages {
+		if usage > 1 {
 			isOverEntitlement = true
 		}
 	}
