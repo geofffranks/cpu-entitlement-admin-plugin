@@ -1,4 +1,4 @@
-package e2e_test
+package integration_test
 
 import (
 	"os"
@@ -10,14 +10,12 @@ import (
 	"github.com/onsi/gomega/gexec"
 )
 
-func TestE2e(t *testing.T) {
+func TestIntegration(t *testing.T) {
 	RegisterFailHandler(Fail)
-	RunSpecs(t, "E2e Suite")
+	RunSpecs(t, "Integration Suite")
 }
 
-var (
-	cfApi string
-)
+var cfApi string
 
 var _ = BeforeSuite(func() {
 	Expect(Cmd("make", "install").WithDir("..").WithTimeout("10s").Run()).To(gexec.Exit(0))

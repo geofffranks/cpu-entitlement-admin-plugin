@@ -3,11 +3,9 @@ package e2e_test
 import (
 	"crypto/tls"
 	"net/http"
-	"os"
-	"os/exec"
-	"path/filepath"
 	"strings"
 
+	. "code.cloudfoundry.org/cpu-entitlement-admin-plugin/test_utils"
 	"github.com/google/uuid"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -44,9 +42,7 @@ var _ = Describe("cpu-entitlement-admin-plugin", func() {
 
 		BeforeEach(func() {
 			appName = "spinner-" + uid
-
 			Expect(Cmd("cf", "push", appName).WithDir("../../spinner").WithTimeout("2m").Run()).To(gexec.Exit(0))
-
 			appURL = strings.Replace(cfApi, "api.", appName+".", 1)
 		})
 
@@ -59,58 +55,7 @@ var _ = Describe("cpu-entitlement-admin-plugin", func() {
 	It("prints a no apps over messages if no apps over entitlement", func() {
 		Consistently(Cmd("cf", "over-entitlement-instances").Run).Should(gbytes.Say("No apps over entitlement"))
 	})
-
 })
-
-type Command struct {
-	cmd     string
-	args    []string
-	dir     string
-	timeout string
-}
-
-func Cmd(cmd string, args ...string) Command {
-	return Command{
-		cmd:     cmd,
-		args:    args,
-		timeout: "1s",
-	}
-}
-
-func (c Command) WithDir(dir string) Command {
-	return Command{
-		cmd:     c.cmd,
-		args:    c.args,
-		dir:     dir,
-		timeout: c.timeout,
-	}
-}
-
-func (c Command) WithTimeout(timeout string) Command {
-	return Command{
-		cmd:     c.cmd,
-		args:    c.args,
-		dir:     c.dir,
-		timeout: timeout,
-	}
-}
-
-func (c Command) Run() *gexec.Session {
-	session, err := gexec.Start(c.build(), GinkgoWriter, GinkgoWriter)
-	ExpectWithOffset(1, err).NotTo(HaveOccurred())
-	EventuallyWithOffset(1, session, c.timeout).Should(gexec.Exit())
-	return session
-}
-
-func (c Command) build() *exec.Cmd {
-	command := exec.Command(c.cmd, c.args...)
-	if c.dir != "" {
-		cwd, err := os.Getwd()
-		ExpectWithOffset(2, err).NotTo(HaveOccurred())
-		command.Dir = filepath.Join(cwd, c.dir)
-	}
-	return command
-}
 
 func httpGet(url string) {
 	http.DefaultTransport.(*http.Transport).TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
