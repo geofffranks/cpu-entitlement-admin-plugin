@@ -82,7 +82,7 @@ var _ = Describe("Fetcher", func() {
 		})
 	})
 
-	FWhen("an app doesn't exist", func() {
+	When("an app doesn't exist", func() {
 		It("returns an error", func() {
 			_, err := logCacheFetcher.FetchInstanceEntitlementUsages("does-not-exist-app-guid")
 			Expect(err).To(MatchError(ContainSubstring("does-not-exist-app-guid")))
