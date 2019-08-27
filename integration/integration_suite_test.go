@@ -18,8 +18,6 @@ func TestIntegration(t *testing.T) {
 var cfApi string
 
 var _ = BeforeSuite(func() {
-	Expect(Cmd("make", "install").WithDir("..").WithTimeout("10s").Run()).To(gexec.Exit(0))
-
 	cfApi = GetEnv("CF_API")
 
 	Expect(Cmd("cf", "api", cfApi, "--skip-ssl-validation").Run()).To(gexec.Exit(0))

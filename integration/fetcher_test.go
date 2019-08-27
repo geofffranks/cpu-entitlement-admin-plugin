@@ -20,11 +20,13 @@ var _ = Describe("Fetcher", func() {
 		getToken        func() (string, error)
 	)
 
-	getUsages := func(appName string) []float64 {
+	getUsages := func(appName string) func() []float64 {
 		appGuid := getCmdOutput("cf", "app", appName, "--guid")
-		usages, err := logCacheFetcher.FetchInstanceEntitlementUsages(appGuid)
-		Expect(err).NotTo(HaveOccurred())
-		return usages
+		return func() []float64 {
+			usages, err := logCacheFetcher.FetchInstanceEntitlementUsages(appGuid)
+			Expect(err).NotTo(HaveOccurred())
+			return usages
+		}
 	}
 
 	BeforeEach(func() {
@@ -32,9 +34,9 @@ var _ = Describe("Fetcher", func() {
 		org = "org-" + uid
 		space := "space-" + uid
 
-		Expect(Cmd("cf", "create-org", org).Run()).To(gexec.Exit(0))
+		Expect(Cmd("cf", "create-org", org).WithTimeout("3s").Run()).To(gexec.Exit(0))
 		Expect(Cmd("cf", "target", "-o", org).Run()).To(gexec.Exit(0))
-		Expect(Cmd("cf", "create-space", space).Run()).To(gexec.Exit(0))
+		Expect(Cmd("cf", "create-space", space).WithTimeout("3s").Run()).To(gexec.Exit(0))
 		Expect(Cmd("cf", "target", "-o", org, "-s", space).Run()).To(gexec.Exit(0))
 
 		logCacheURL := strings.Replace(cfApi, "https://api.", "http://log-cache.", 1)
@@ -51,8 +53,8 @@ var _ = Describe("Fetcher", func() {
 
 	When("running multiple apps with various instance counts", func() {
 		BeforeEach(func() {
-			Expect(Cmd("cf", "push", "spinner-2-"+uid).WithDir("../../spinner").WithTimeout("2m").Run()).To(gexec.Exit(0))
 			Expect(Cmd("cf", "push", "spinner-1-"+uid, "-i", "3").WithDir("../../spinner").WithTimeout("2m").Run()).To(gexec.Exit(0))
+			Expect(Cmd("cf", "push", "spinner-2-"+uid).WithDir("../../spinner").WithTimeout("2m").Run()).To(gexec.Exit(0))
 		})
 
 		It("gets the usages of all instances for each app", func() {
@@ -79,13 +81,6 @@ var _ = Describe("Fetcher", func() {
 		It("returns an error about the url", func() {
 			_, err := logCacheFetcher.FetchInstanceEntitlementUsages("anything")
 			Expect(err).To(MatchError(ContainSubstring("dial")))
-		})
-	})
-
-	When("an app doesn't exist", func() {
-		It("returns an error", func() {
-			_, err := logCacheFetcher.FetchInstanceEntitlementUsages("does-not-exist-app-guid")
-			Expect(err).To(MatchError(ContainSubstring("does-not-exist-app-guid")))
 		})
 	})
 })

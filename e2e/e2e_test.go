@@ -24,9 +24,9 @@ var _ = Describe("cpu-entitlement-admin-plugin", func() {
 		org = "org-" + uid
 		space := "space-" + uid
 
-		Expect(Cmd("cf", "create-org", org).Run()).To(gexec.Exit(0))
+		Expect(Cmd("cf", "create-org", org).WithTimeout("3s").Run()).To(gexec.Exit(0))
 		Expect(Cmd("cf", "target", "-o", org).Run()).To(gexec.Exit(0))
-		Expect(Cmd("cf", "create-space", space).Run()).To(gexec.Exit(0))
+		Expect(Cmd("cf", "create-space", space).WithTimeout("3s").Run()).To(gexec.Exit(0))
 		Expect(Cmd("cf", "target", "-o", org, "-s", space).Run()).To(gexec.Exit(0))
 	})
 
